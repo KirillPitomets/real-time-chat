@@ -5,9 +5,8 @@ import { client } from "@/lib/client";
 import { useRealtime } from "@/lib/realtie-client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from 'date-fns';
-import { useParams } from "next/navigation";
-import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 function formatTimeRemaning(seconds: number) {
   const mins = Math.floor(seconds / 60);
@@ -18,16 +17,48 @@ function formatTimeRemaning(seconds: number) {
 
 const Page = () => {
   const { username } = useUsername();
+  const router = useRouter()
 
   const params = useParams();
   const roomId = params.roomId as string;
 
-  const router = useRouter()
 
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [copyStates, setCopyStates] = useState<"copy" | "copied">("copy");
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+
+  const { data: ttlData } = useQuery({
+    queryKey: ["ttl", roomId],
+    queryFn: async () => {
+      const res = await client.room.ttl.get({ query: { roomId } })
+      if (res.data?.ttl) {
+        setTimeRemaining(res.data?.ttl)
+      }
+      return res.data
+    }
+  })
+
+  useEffect(() => {
+    if (timeRemaining === null || timeRemaining < 0) return
+
+    if (timeRemaining === 0) {
+      router.push("/?destroed=true")
+      return
+    }
+
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev === null || prev <= 1) {
+          clearInterval(interval)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [timeRemaining, router])
 
   const { data: messages, refetch } = useQuery({
     queryKey: ["messages", roomId],
@@ -54,12 +85,25 @@ const Page = () => {
         refetch()
       }
 
-      if (event === "chat.destroy") 
-      {
+      if (event === "chat.destroy") {
         router.push("/?destroyed=true")
       }
     }
   })
+
+  const { mutate: destroyRoom } = useMutation({
+    mutationFn: async () => {
+      await client.room.delete(null, { query: { roomId } })
+    }
+  })
+
+  const copyLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setCopyStates("copied");
+
+    setTimeout(() => setCopyStates("copy"), 2000);
+  }
 
   const inputValuehandler = () => (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
@@ -77,13 +121,6 @@ const Page = () => {
     }
   }
 
-  const copyLink = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url);
-    setCopyStates("copied");
-
-    setTimeout(() => setCopyStates("copy"), 2000);
-  }
 
   return (
     <main className="flex flex-col h-screen max-h-screen overflow-hidden">
@@ -110,7 +147,9 @@ const Page = () => {
           </div>
         </div>
 
-        <button className="text-sx bg-zinc-800 hover:bg-red-600 px-3 py-1.5 rounded text-zinc-400 hover:text-white font-bold transition-all group flex items-center gap-2 disabled:opacity-50">
+        <button
+          onClick={() => destroyRoom()}
+          className="text-sx bg-zinc-800 hover:bg-red-600 px-3 py-1.5 rounded text-zinc-400 hover:text-white font-bold transition-all group flex items-center gap-2 disabled:opacity-50">
           <span className="group-hover:animate-pulse">💣</span>
           Destroy now
         </button>
