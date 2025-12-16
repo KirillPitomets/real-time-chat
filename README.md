@@ -10,6 +10,8 @@ This project is based on a video tutorial and was adapted for learning purposes.
 
 The goal was not just to follow the guide step by step, but to understand the architecture, data flow, and design decisions behind a realtime application. During development, I analyzed the tutorial code and modified parts of the implementation to strengthen my understanding and improve code quality.
 
+### [Preview](https://real-time-chat-three-sepia.vercel.app/room/Txui1rSBKq2mM8tdUTHRH)
+
 ---
 
 ## Technologies and Tools
